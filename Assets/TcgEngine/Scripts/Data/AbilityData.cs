@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using TcgEngine.Gameplay;
+using TcgEngine.Client;
 
 namespace TcgEngine
 {
@@ -200,6 +201,7 @@ namespace TcgEngine
         {
             foreach(EffectData effect in effects)
                 effect?.DoEffect(logic, this, caster);
+
         }
 
         public void DoEffects(GameLogic logic, Card caster, Card target)
@@ -276,7 +278,7 @@ namespace TcgEngine
         }
 
         //Return cards targets,  memory_array is used for optimization and avoid allocating new memory
-        public List<Card> GetCardTargets(Game data, Card caster, ListSwap<Card> memory_array = null)
+        public List<Card> GetCardTargets(Game data, Card caster, ListSwap<Card> memory_array = null,bool IsAI = false)
         {
             if (memory_array == null)
                 memory_array = new ListSwap<Card>(); //Slow operation
@@ -327,6 +329,33 @@ namespace TcgEngine
                 }
             }
 
+            if (target == AbilityTarget.CardSelector_Both)
+            { 
+                var tempid = caster.player_id;
+                caster.player_id = GameClient.Get().GetPlayerID();
+                foreach (Player player in data.players)
+                {
+                    if (IsAI)
+                    {
+                        foreach(Player p in data.players)
+                        {
+                            if (p.is_ai)
+                            {
+                                caster.player_id = p.player_id;
+                                break;
+                            }    
+                        }
+                    }
+                    AddValidCards(data, caster, player.cards_deck, targets);
+                    AddValidCards(data, caster, player.cards_discard, targets);
+                    AddValidCards(data, caster, player.cards_hand, targets);
+                    AddValidCards(data, caster, player.cards_secret, targets);
+                    AddValidCards(data, caster, player.cards_board, targets);
+                    AddValidCards(data, caster, player.cards_equip, targets);
+                    AddValidCards(data, caster, player.cards_temp, targets);
+                    caster.player_id = tempid;
+                }
+            }
             if (target == AbilityTarget.LastPlayed)
             {
                 Card target = data.GetCard(data.last_played);
@@ -395,7 +424,7 @@ namespace TcgEngine
         }
 
         //Return player targets,  memory_array is used for optimization and avoid allocating new memory
-        public List<Player> GetPlayerTargets(Game data, Card caster, ListSwap<Player> memory_array = null)
+        public List<Player> GetPlayerTargets(Game data, Card caster, Player ResClient = null, ListSwap<Player> memory_array = null)
         {
             if (memory_array == null)
                 memory_array = new ListSwap<Player>(); //Slow operation
@@ -417,6 +446,10 @@ namespace TcgEngine
                         targets.Add(oplayer);
                     }
                 }
+            }
+            else if(target == AbilityTarget.Respective)
+            {
+                if(ResClient !=null)  targets.Add(ResClient);
             }
             else if (target == AbilityTarget.AllPlayers)
             {
@@ -647,6 +680,7 @@ namespace TcgEngine
 
         PlayerSelf = 4,
         PlayerOpponent = 5,
+        Respective= 6, //Both players themselves
         AllPlayers = 7,
 
         AllCardsBoard = 10,
@@ -661,6 +695,7 @@ namespace TcgEngine
 
         SelectTarget = 30,        //Select a card, player or slot on board
         CardSelector = 40,          //Card selector menu
+        CardSelector_Both = 41,     // both sides Card selector menu
         ChoiceSelector = 50,        //Choice selector menu
 
         LastPlayed = 70,            //Last card that was played 

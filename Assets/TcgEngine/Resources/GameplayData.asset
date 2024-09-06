@@ -16,10 +16,11 @@ MonoBehaviour:
   mana_start: 2
   mana_per_turn: 1
   mana_max: 10
-  cards_start: 5
+  cards_start_Later: 4
+  cards_start_First: 3
   cards_per_turn: 1
-  cards_max: 10
-  turn_duration: 60
+  cards_max: 9
+  turn_duration: 36
   second_bonus: {fileID: 11400000, guid: 9503f60659f1df04eb3dd7fa925885fb, type: 2}
   deck_size: 20
   deck_duplicate_max: 2
@@ -31,8 +32,8 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 8539b1ce42aef234786631b3c4bfb067, type: 2}
   - {fileID: 11400000, guid: e371ae9abcc31014992b685a145a087c, type: 2}
   starter_decks:
-  - {fileID: 11400000, guid: 8aea02f8dfcc2834d8eeca8e259140ce, type: 2}
   - {fileID: 11400000, guid: 8539b1ce42aef234786631b3c4bfb067, type: 2}
+  - {fileID: 11400000, guid: 8aea02f8dfcc2834d8eeca8e259140ce, type: 2}
   - {fileID: 11400000, guid: e371ae9abcc31014992b685a145a087c, type: 2}
   ai_decks:
   - {fileID: 11400000, guid: 8aea02f8dfcc2834d8eeca8e259140ce, type: 2}
@@ -41,5 +42,6 @@ MonoBehaviour:
   arena_list:
   - Game
   test_deck: {fileID: 11400000, guid: 0e6326c43c0688e40bbf592cf3ea6dec, type: 2}
-  test_deck_ai: {fileID: 11400000, guid: 0e6326c43c0688e40bbf592cf3ea6dec, type: 2}
+  test_deck_ai: {fileID: 11400000, guid: e371ae9abcc31014992b685a145a087c, type: 2}
   ai_vs_ai: 0
+  HideCard: {fileID: 11400000, guid: f251ebaf3aadb8348a7ff5466ca5eb80, type: 2}

@@ -325,6 +325,16 @@ namespace TcgEngine.Client
             mdata.card_uid = card.uid;
             SendAction(GameAction.SelectCard, mdata);
         }
+        public void SelectCards(List<Card> card)
+        {
+            MsgCards mdata = new MsgCards();
+            for (int i = 0; i < card.Count;i++)
+            {
+                if (i != 0) mdata.card_uid += ",";
+                mdata.card_uid += card[i].uid;
+            }
+            SendAction(GameAction.SelectCards, mdata);
+        }
 
         public void SelectPlayer(Player player)
         {

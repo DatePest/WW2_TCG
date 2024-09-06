@@ -19,6 +19,7 @@ namespace TcgEngine
         public const ushort Move = 1015;
         public const ushort CastAbility = 1020;
         public const ushort SelectCard = 1030;
+        public const ushort SelectCards = 1031;
         public const ushort SelectPlayer = 1032;
         public const ushort SelectSlot = 1034;
         public const ushort SelectChoice = 1036;
@@ -80,6 +81,8 @@ namespace TcgEngine
                 return "end_turn";
             if (type == GameAction.SelectCard)
                 return "select_card";
+            if (type == GameAction.SelectCards)
+                return "select_cards";
             if (type == GameAction.SelectPlayer)
                 return "select_player";
             if (type == GameAction.SelectChoice)

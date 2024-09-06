@@ -23,14 +23,17 @@ namespace TcgEngine.UI
         public Text select_button_text;
         public float card_spacing = 100f;
 
+      
         private AbilityData iability;
 
         private List<Card> card_list = new List<Card>();
         private List<CardSelectorCard> selector_list = new List<CardSelectorCard>();
+        private List<CardSelectorCard> selected_list = new List<CardSelectorCard>();
 
         private Vector2 mouse_start;
         private int mouse_start_index;
-        private int selection_index = 0;
+        [SerializeField]private int selection_index = 0;
+        [SerializeField] private int target_quantity;
         private bool drag = false;
         private float mouse_scroll = 0f;
         private float timer = 0f;
@@ -157,19 +160,18 @@ namespace TcgEngine.UI
         public void OnClickOK()
         {
             Game data = GameClient.Get().GetGameData();
-            if (iability != null && data.selector == SelectorType.SelectorCard)
+            if (iability != null && (data.selector == SelectorType.SelectorCard || data.selector == SelectorType.SelectorCard_Both))
             {
                 CardSelectorCard selector_card = null;
                 if (selection_index >= 0 && selection_index < selector_list.Count)
                     selector_card = selector_list[selection_index];
-
+                    
                 if (selector_card != null)
                 {
-                    Card selected_card = selector_card.GetCard();
-                    Card caster = data.GetCard(data.selector_caster_uid);
-                    if (selected_card != null && iability.AreTargetConditionsMet(data, caster, selected_card))
+                    RegisterTheSelectedTarget(data,selector_card);
+                    if (CheckQuantity())
                     {
-                        GameClient.Get().SelectCard(selected_card);
+                        PostSelection();
                         Hide();
                     }
                 }
@@ -179,8 +181,35 @@ namespace TcgEngine.UI
                 Hide();
             }
         }
+            #region blackup
+            //   public void OnClickOK()
+            //{
+            //    Game data = GameClient.Get().GetGameData();
+            //    if (iability != null && (data.selector == SelectorType.SelectorCard || data.selector == SelectorType.SelectorCard_Both))
+            //    {
+            //        CardSelectorCard selector_card = null;
+            //        if (selection_index >= 0 && selection_index < selector_list.Count)
+            //            selector_card = selector_list[selection_index];
 
-        public void OnClickMouseDown()
+            //        if (selector_card != null)
+            //        {
+            //            Card selected_card = selector_card.GetCard();
+            //            Card caster = data.GetCard(data.selector_caster_uid);
+            //            if (selected_card != null && iability.AreTargetConditionsMet(data, caster, selected_card))
+            //            {
+            //                GameClient.Get().SelectCard(selected_card);
+            //                Hide();
+            //            }
+            //        }
+            //    }
+            //    else
+            //    {
+            //        Hide();
+            //    }
+            //}
+            #endregion
+
+            public void OnClickMouseDown()
         {
             mouse_start = GetMouseRectPosition();
             mouse_start_index = selection_index;
@@ -235,12 +264,57 @@ namespace TcgEngine.UI
         {
             base.Show(instant);
             RefreshPanel();
+            SetQuantity();
         }
+        void RegisterTheSelectedTarget(Game data,CardSelectorCard selector_card)
+        {
+            if (selector_card == null) return;
+            if (selected_list.Contains(selector_card))
+            {
+                selected_list.Remove(selector_card);
+                return;
+            }
+            else
+            {
+                Card selected_card = selector_card.GetCard();
+                Card caster = data.GetCard(data.selector_caster_uid);
+                if ( iability.AreTargetConditionsMet(data, caster, selected_card))
+                    selected_list.Add(selector_card);
+            }
+        }
+        bool CheckQuantity() => selected_list.Count >= target_quantity;
+        void PostSelection()
+        {
+            if(selected_list.Count <= 1)
+            {
+                GameClient.Get().SelectCard(selected_list[0].GetCard());
+            }
+            else
+            {
+                List<Card> cards = new List<Card>();
+                foreach (var a in selected_list)
+                {
+                    cards.Add(a.GetCard());
+                }
+                GameClient.Get().SelectCards(cards);
+            }
 
+        }
+        void SetQuantity()
+        {
+            target_quantity = GameClient.Get().GetGameData().GetNeedSelectorQuantity();
+            selected_list.Clear();  
+        }
         public override bool ShouldShow()
         {
             Game data = GameClient.Get().GetGameData();
             int player_id = GameClient.Get().GetPlayerID();
+           // Debug.Log(data.selector + "_____"+data.IsPlayerDoneSelector(player_id));
+            if (data.selector == SelectorType.SelectorCard_Both&&!data.IsPlayerDoneSelector(player_id))
+            {
+                return true;
+            }
+
             return data.selector == SelectorType.SelectorCard && data.selector_player_id == player_id;
         }
 

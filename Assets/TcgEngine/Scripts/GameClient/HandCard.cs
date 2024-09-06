@@ -226,7 +226,7 @@ namespace TcgEngine.Client
                 WarningText.ShowSpellImmune();
                 return;
             }
-
+            
             if (!player.CanPayMana(card))
             {
                 WarningText.ShowNoMana();

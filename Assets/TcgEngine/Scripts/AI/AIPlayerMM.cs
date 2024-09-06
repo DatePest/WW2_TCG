@@ -27,7 +27,7 @@ namespace TcgEngine.AI
         {
             Game game_data = gameplay.GetGameData();
             Player player = game_data.GetPlayer(player_id);
-
+            AILogic.SkipWaitBothSelector(gameplay, player_id);
             if (!is_playing && CanPlay())
             {
                 is_playing = true;
@@ -200,7 +200,8 @@ namespace TcgEngine.AI
             Card target = game_data.GetCard(target_uid);
             if (target != null)
             {
-                gameplay.SelectCard(target);
+                Player AIPlayer = game_data.GetPlayer(player_id);
+                gameplay.SelectCard(target, AIPlayer);
             }
         }
 
@@ -231,7 +232,7 @@ namespace TcgEngine.AI
         {
             if (CanPlay())
             {
-                gameplay.CancelSelection();
+                gameplay.CancelSelection(gameplay.GameData.GetPlayer(player_id));
             }
         }
 

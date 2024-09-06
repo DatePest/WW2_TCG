@@ -4,6 +4,10 @@ using System.Threading;
 using UnityEngine;
 using UnityEngine.Profiling;
 using TcgEngine.Gameplay;
+using Unity.Burst.Intrinsics;
+using UnityEditor.Experimental.GraphView;
+using TcgEngine.Client;
+using UnityEngine.InputSystem;
 
 namespace TcgEngine.AI
 {
@@ -514,7 +518,7 @@ namespace TcgEngine.AI
             {
                 for (int p = 0; p < data.players.Length; p++)
                 {
-                    List<Card> cards = ability.GetCardTargets(data, caster, card_array);
+                    List<Card> cards = ability.GetCardTargets(data, caster, card_array,true);
                     foreach (Card tcard in cards)
                     {
                         AIAction action = CreateAction(GameAction.SelectCard, caster);
@@ -606,7 +610,8 @@ namespace TcgEngine.AI
             if (action.type == GameAction.SelectCard)
             {
                 Card target = data.GetCard(action.target_uid);
-                game_logic.SelectCard(target);
+                Player AIPlayer = game_logic.GameData.GetPlayer(ai_player_id);
+                game_logic.SelectCard(target, AIPlayer);
             }
 
             if (action.type == GameAction.SelectPlayer)
@@ -627,7 +632,7 @@ namespace TcgEngine.AI
 
             if (action.type == GameAction.CancelSelect)
             {
-                game_logic.CancelSelection();
+                game_logic.CancelSelection(game_logic.GameData.GetPlayer(player_id));
             }
 
             if (action.type == GameAction.EndTurn)
@@ -721,6 +726,14 @@ namespace TcgEngine.AI
         public bool IsBestFound()
         {
             return best_move != null;
+        }
+        // As long as both parties are waiting to choose, AI will cancel them all for the time being.
+        public static void SkipWaitBothSelector(GameLogic gameLogic,int Id)
+        {
+            if(gameLogic.GameData.phase == GamePhase.WaitBothSides&& !gameLogic.GameData.IsPlayerDoneSelector(Id))
+            {
+                gameLogic.CancelSelection(gameLogic.GameData.GetPlayer(Id));
+            }
         }
     }
 

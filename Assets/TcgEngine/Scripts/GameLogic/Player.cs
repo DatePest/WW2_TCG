@@ -545,7 +545,12 @@ namespace TcgEngine
                 return true;
             return false;
         }
-
+        public virtual bool IsDead_Hero()
+        {
+            if (hero.IsDead)
+                return true;
+            return false;
+        }
         //--------------------
 
         //Clone all player variables into another var, used mostly by the AI when building a prediction tree

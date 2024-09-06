@@ -86,7 +86,15 @@ namespace TcgEngine.Client
 
         public virtual bool IsInside(Vector3 wpos)
         {
-            return bounds.Contains(wpos);
+            // is In RectTransform
+            RectTransform r = GetComponent<RectTransform>();
+            if (r != null)
+            {
+
+                return RectTransformUtility.RectangleContainsScreenPoint(r, new Vector2(wpos.x, wpos.y));
+            }
+            return bounds.Contains(wpos); // is In Transform
+
         }
 
         public static BSlot GetNearest(Vector3 pos)
@@ -96,6 +104,7 @@ namespace TcgEngine.Client
             foreach (BSlot slot in GetAll())
             {
                 float dist = (slot.transform.position - pos).magnitude;
+               
                 if (slot.IsInside(pos) && dist < min_dist)
                 {
                     min_dist = dist;

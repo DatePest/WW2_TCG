@@ -26,6 +26,8 @@ namespace TcgEngine
         public int attack_ongoing = 0;
         public int hp_ongoing = 0;
 
+        public bool IsDead = false;
+
         public string equipped_uid = null;
 
         public List<CardTrait> traits = new List<CardTrait>();

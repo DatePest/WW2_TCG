@@ -20,13 +20,17 @@ namespace TcgEngine
 
         public GameState state = GameState.Connecting;
         public GamePhase phase = GamePhase.None;
+        public GamerType game_model = GamerType.Hero;
 
         //Players
         public Player[] players;
 
         //Selector
         public SelectorType selector = SelectorType.None;
-        public int selector_player_id = 0;
+        public int selector_player_id = 0; // -1 is all  0 , 1 is player
+        public bool[] selector_Done_player;
+        public int selector_count = 0;
+        public const int  selector_Allplayer = -1;
         public string selector_ability_id;
         public string selector_caster_uid;
 
@@ -48,6 +52,7 @@ namespace TcgEngine
         {
             this.game_uid = uid;
             players = new Player[nb_players];
+            selector_Done_player = new bool[nb_players];
             for (int i = 0; i < nb_players; i++)
                 players[i] = new Player(i);
             settings = GameSettings.Default;
@@ -168,7 +173,7 @@ namespace TcgEngine
             if (attacker.player_id == target.player_id)
                 return false; //Cant attack same player
 
-            if (!IsOnBoard(attacker) || !attacker.CardData.IsCharacter())
+            if (!IsOnBoard(attacker) || !attacker.CardData.IsCharacterRoHero())
                 return false; //Cards not on board
 
             if (target.HasStatus(StatusType.Protected) && !attacker.HasStatus(StatusType.Flying))
@@ -192,7 +197,7 @@ namespace TcgEngine
             if (!IsOnBoard(attacker) || !IsOnBoard(target))
                 return false; //Cards not on board
 
-            if (!attacker.CardData.IsCharacter() || !target.CardData.IsBoardCard())
+            if (!attacker.CardData.IsCharacterRoHero() || !target.CardData.IsBoardCard())
                 return false; //Only character can attack
 
             if (target.HasStatus(StatusType.Stealth))
@@ -300,6 +305,14 @@ namespace TcgEngine
         {
             if (id >= 0 && id < players.Length)
                 return players[id];
+            return null;
+        }
+        public Player GetAIPlayer()
+        {
+           foreach (Player player in players)
+            {
+                if (player.is_ai) return player;
+            }
             return null;
         }
 
@@ -447,6 +460,13 @@ namespace TcgEngine
             return player.GetRandomSlot(rand);
         }
 
+        public int GetNeedSelectorQuantity()
+        {
+            AbilityData ability = AbilityData.Get(selector_ability_id);
+            return ability.value <= 1 ? 1 : ability.value;
+        }
+
+
         public bool IsInHand(Card card)
         {
             return card != null && GetHandCard(card.uid) != null;
@@ -495,6 +515,19 @@ namespace TcgEngine
         public bool HasEnded()
         {
             return state == GameState.GameEnded;
+        }
+        public bool IsAllPlayerDoneSelector()
+        {
+            foreach(bool b in selector_Done_player)
+            {
+                if (!b) return false;
+            }
+            return true;
+        }
+        public bool IsPlayerDoneSelector(int id)
+        {
+            if (selector_Done_player[id]) return true;
+            return false;
         }
 
         //Same as clone, but also instantiates the variable (much slower)
@@ -556,7 +589,9 @@ namespace TcgEngine
     public enum GameState
     {
         Connecting = 0, //Players are not connected
+        BeginTheShuffle = 10, // Wait for both parties to complete the card exchange
         Play = 20,      //Game is being played
+
         GameEnded = 99,
     }
 
@@ -564,6 +599,7 @@ namespace TcgEngine
     public enum GamePhase
     {
         None = 0,
+        WaitBothSides = 5,//Wait for both parties to select cards
         StartTurn = 10, //Start of turn resolution
         Main = 20,      //Main play phase
         EndTurn = 30,   //End of turn resolutions
@@ -575,6 +611,13 @@ namespace TcgEngine
         None = 0,
         SelectTarget = 10,
         SelectorCard = 20,
+        SelectorCard_Both = 21,
         SelectorChoice = 30,
+    }
+    [System.Serializable]
+    public enum GamerType
+    {
+        Player = 0,
+        Hero = 10
     }
 }

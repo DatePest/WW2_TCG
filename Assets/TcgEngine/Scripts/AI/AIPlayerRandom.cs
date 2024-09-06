@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using TcgEngine.Client;
 using TcgEngine.Gameplay;
+using static UnityEngine.GraphicsBuffer;
 
 namespace TcgEngine.AI
 {
@@ -25,6 +26,9 @@ namespace TcgEngine.AI
 
         public override void Update()
         {
+
+            AILogic.SkipWaitBothSelector(gameplay, player_id);
+
             if (!CanPlay())
                 return;
 
@@ -202,11 +206,12 @@ namespace TcgEngine.AI
             Card caster = game_data.GetCard(game_data.selector_caster_uid);
             if (player != null && ability != null && caster != null)
             {
-                List<Card> card_list = ability.GetCardTargets(game_data, caster);
+                List<Card> card_list = ability.GetCardTargets(game_data, caster,null,true);
                 if (card_list.Count > 0)
                 {
                     Card card = card_list[rand.Next(0, card_list.Count)];
-                    gameplay.SelectCard(card);
+                    Player AIPlayer = game_data.GetPlayer(player_id);
+                    gameplay.SelectCard(card, AIPlayer);
                 }
             }
         }
@@ -229,7 +234,11 @@ namespace TcgEngine.AI
                 {
                     Card random = tplayer.GetRandomCard(tplayer.cards_board, rand);
                     if (random != null)
-                        gameplay.SelectCard(random);
+                    {
+                        Player AIPlayer = game_data.GetPlayer(player_id);
+                        gameplay.SelectCard(random, AIPlayer);
+                    }
+                       
                 }
             }
         }
@@ -255,7 +264,7 @@ namespace TcgEngine.AI
         {
             if (CanPlay())
             {
-                gameplay.CancelSelection();
+                gameplay.CancelSelection(gameplay.GameData.GetPlayer(player_id));
             }
         }
 

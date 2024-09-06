@@ -17,7 +17,8 @@ namespace TcgEngine
         public int mana_start = 1;
         public int mana_per_turn = 1;
         public int mana_max = 10;
-        public int cards_start = 5;
+        public int cards_start_Later = 4;
+        public int cards_start_First = 3;
         public int cards_per_turn = 1;
         public int cards_max = 10;
         public float turn_duration = 30f;
@@ -46,6 +47,9 @@ namespace TcgEngine
         public DeckData test_deck;          //For when starting the game directly from Unity game scene
         public DeckData test_deck_ai;       //For when starting the game directly from Unity game scene
         public bool ai_vs_ai;
+
+        [Header("Shuffle at the start")]
+        public CardData HideCard;
 
         public int GetPlayerLevel(int xp)
         {

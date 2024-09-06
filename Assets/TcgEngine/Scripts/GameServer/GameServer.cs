@@ -4,6 +4,7 @@ using TcgEngine.Gameplay;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.Rendering.Universal;
 
 namespace TcgEngine.Server
 {
@@ -62,6 +63,7 @@ namespace TcgEngine.Server
             RegisterAction(GameAction.Move, ReceiveMove);
             RegisterAction(GameAction.CastAbility, ReceiveCastCardAbility);
             RegisterAction(GameAction.SelectCard, ReceiveSelectCard);
+            RegisterAction(GameAction.SelectCards, ReceiveSelectCards);
             RegisterAction(GameAction.SelectPlayer, ReceiveSelectPlayer);
             RegisterAction(GameAction.SelectSlot, ReceiveSelectSlot);
             RegisterAction(GameAction.SelectChoice, ReceiveSelectChoice);
@@ -142,6 +144,17 @@ namespace TcgEngine.Server
 
             if (is_dedicated_server && !HasGameEnded() && IsWinExpired())
                 EndExpiredGame();
+
+
+           // Debug.Log($"{game_data.state}__ + {game_data.selector} + {game_data.IsAllPlayerDoneSelector()}");
+            if (game_data.state == GameState.BeginTheShuffle && !gameplay.IsResolving())
+            {
+                
+                if (game_data.IsAllPlayerDoneSelector())
+                {
+                    gameplay.NextStep();
+                }
+            }
 
             //Timer during game
             if (game_data.state == GameState.Play && !gameplay.IsResolving())
@@ -292,9 +305,13 @@ namespace TcgEngine.Server
             Player player = GetPlayer(iclient);
             if (player != null && msg != null && game_data.IsPlayerActionTurn(player) && !gameplay.IsResolving())
             {
+                gameplay.SetResClient(player);
                 Card card = player.GetCard(msg.card_uid);
                 if (card != null && card.player_id == player.player_id)
+                {
                     gameplay.PlayCard(card, msg.slot);
+                }
+                  
             }
         }
 
@@ -304,6 +321,7 @@ namespace TcgEngine.Server
             Player player = GetPlayer(iclient);
             if (player != null && msg != null && game_data.IsPlayerActionTurn(player) && !gameplay.IsResolving())
             {
+                gameplay.SetResClient(player);
                 Card attacker = player.GetCard(msg.attacker_uid);
                 Card target = game_data.GetCard(msg.target_uid);
                 if (attacker != null && target != null && attacker.player_id == player.player_id)
@@ -319,6 +337,7 @@ namespace TcgEngine.Server
             Player player = GetPlayer(iclient);
             if (player != null && msg != null && game_data.IsPlayerActionTurn(player) && !gameplay.IsResolving())
             {
+                gameplay.SetResClient(player);
                 Card attacker = player.GetCard(msg.attacker_uid);
                 Player target = game_data.GetPlayer(msg.target_id);
                 if (attacker != null && target != null && attacker.player_id == player.player_id)
@@ -334,6 +353,7 @@ namespace TcgEngine.Server
             Player player = GetPlayer(iclient);
             if (player != null && msg != null && game_data.IsPlayerActionTurn(player) && !gameplay.IsResolving())
             {
+                gameplay.SetResClient(player);
                 Card card = player.GetCard(msg.card_uid);
                 if (card != null && card.player_id == player.player_id)
                     gameplay.MoveCard(card, msg.slot);
@@ -346,21 +366,34 @@ namespace TcgEngine.Server
             Player player = GetPlayer(iclient);
             if (player != null && msg != null && game_data.IsPlayerActionTurn(player) && !gameplay.IsResolving())
             {
+                gameplay.SetResClient(player);
                 Card card = player.GetCard(msg.caster_uid);
                 AbilityData iability = AbilityData.Get(msg.ability_id);
                 if (card != null && card.player_id == player.player_id)
                     gameplay.CastAbility(card, iability);
             }
         }
-
+        //This handles the logic when both parties need to choose
         public void ReceiveSelectCard(ClientData iclient, SerializedData sdata)
         {
             MsgCard msg = sdata.Get<MsgCard>();
             Player player = GetPlayer(iclient);
-            if (player != null && msg != null && game_data.IsPlayerSelectorTurn(player) && !gameplay.IsResolving())
+            if (player != null && msg != null && HasCanSelector(player) && !gameplay.IsResolving())
             {
+                gameplay.SetResClient(player);
                 Card target = game_data.GetCard(msg.card_uid);
-                gameplay.SelectCard(target);
+                gameplay.SelectCard(target, player);
+            }
+        }
+        public void ReceiveSelectCards(ClientData iclient, SerializedData sdata)
+        {
+            MsgCards msg = sdata.Get<MsgCards>();
+            Player player = GetPlayer(iclient);
+            if (player != null && msg != null && HasCanSelector(player) && !gameplay.IsResolving())
+            {
+                gameplay.SetResClient(player);
+                var cards = msg.card_uid.Split(',');
+                gameplay.SelectCards(cards, player);
             }
         }
 
@@ -370,6 +403,7 @@ namespace TcgEngine.Server
             Player player = GetPlayer(iclient);
             if (player != null && msg != null && game_data.IsPlayerSelectorTurn(player) && !gameplay.IsResolving())
             {
+                gameplay.SetResClient(player);
                 Player target = game_data.GetPlayer(msg.player_id);
                 gameplay.SelectPlayer(target);
             }
@@ -381,7 +415,8 @@ namespace TcgEngine.Server
             Player player = GetPlayer(iclient);
             if (player != null && game_data.IsPlayerSelectorTurn(player) && !gameplay.IsResolving())
             {
-                if(slot != null && slot.IsValid())
+                gameplay.SetResClient(player);
+                if (slot != null && slot.IsValid())
                     gameplay.SelectSlot(slot);
             }
         }
@@ -392,6 +427,7 @@ namespace TcgEngine.Server
             Player player = GetPlayer(iclient);
             if (player != null && msg != null && game_data.IsPlayerSelectorTurn(player) && !gameplay.IsResolving())
             {
+                gameplay.SetResClient(player);
                 gameplay.SelectChoice(msg.value);
             }
         }
@@ -401,7 +437,8 @@ namespace TcgEngine.Server
             Player player = GetPlayer(iclient);
             if (player != null && game_data.IsPlayerSelectorTurn(player) && !gameplay.IsResolving())
             {
-                gameplay.CancelSelection();
+                gameplay.SetResClient(player);
+                gameplay.CancelSelection(player);
             }
         }
 
@@ -430,6 +467,7 @@ namespace TcgEngine.Server
             Player player = GetPlayer(iclient);
             if (player != null && msg != null)
             {
+                gameplay.SetResClient(player);
                 msg.player_id = player.player_id; //Force player id to sending client to avoid spoofing
                 SendToAll(GameAction.ChatMessage, msg, NetworkDelivery.Reliable);
             }
@@ -633,7 +671,10 @@ namespace TcgEngine.Server
         {
             return gameplay.GetGameData();
         }
-
+        public virtual bool HasCanSelector(Player player)
+        {
+            return (game_data.IsPlayerSelectorTurn(player) || game_data.phase == GamePhase.WaitBothSides);
+        }
         public virtual bool HasGameStarted()
         {
             return gameplay.IsGameStarted();

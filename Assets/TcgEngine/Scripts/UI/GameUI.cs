@@ -118,7 +118,9 @@ namespace TcgEngine.UI
             //Hide
             if (!yourturn)
             {
-                SelectorPanel.HideAll();
+                if (data.phase == GamePhase.WaitBothSides)
+                    return;
+                    SelectorPanel.HideAll();
             }
 
         }

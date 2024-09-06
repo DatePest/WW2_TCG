@@ -185,6 +185,15 @@ namespace TcgEngine
             serializer.SerializeValue(ref card_uid);
         }
     }
+    public class MsgCards : INetworkSerializable
+    {
+        public string card_uid;
+
+        public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
+        {
+            serializer.SerializeValue(ref card_uid);
+        }
+    }
 
     public class MsgPlayer : INetworkSerializable
     {

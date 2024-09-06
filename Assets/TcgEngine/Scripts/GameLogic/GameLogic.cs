@@ -1,8 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.InputSystem;
 using UnityEngine.Profiling;
+using static UnityEngine.GraphicsBuffer;
 
 namespace TcgEngine.Gameplay
 {
@@ -47,7 +50,7 @@ namespace TcgEngine.Gameplay
 
         private ResolveQueue resolve_queue;
         private bool is_ai_predict = false;
-        
+        private Player current_receive_Client;
         private System.Random random = new System.Random();
 
         private ListSwap<Card> card_array = new ListSwap<Card>();
@@ -93,7 +96,7 @@ namespace TcgEngine.Gameplay
             game_data.current_player = game_data.first_player;
             game_data.turn_count = 1;
 
-            //Adventure settings
+            //Adventure settings (pve)
             LevelData level = game_data.settings.GetLevel();
             if (level != null)
             {
@@ -103,7 +106,6 @@ namespace TcgEngine.Gameplay
                     game_data.first_player = 1;
                 game_data.current_player = game_data.first_player;
             }
-
             //Init each players
             foreach (Player player in game_data.players)
             {
@@ -111,31 +113,65 @@ namespace TcgEngine.Gameplay
                 DeckPuzzleData pdeck = DeckPuzzleData.Get(player.deck);
 
                 //Hp / mana
-                player.hp_max = pdeck != null ? pdeck.start_hp : GameplayData.Get().hp_start;
-                player.hp = player.hp_max;
                 player.mana_max = pdeck != null ? pdeck.start_mana : GameplayData.Get().mana_start;
                 player.mana = player.mana_max;
+                if(game_data.game_model == GamerType.Hero)
+                {
+                    var hero = player.hero;
+                    player.cards_board.Add(hero);
+                    hero.slot = new Slot(4, 1, player.player_id);
+                    hero.exhausted = true;
+                }
+                else if (game_data.game_model == GamerType.Player)
+                {
 
+                    player.hp_max = pdeck != null ? pdeck.start_hp : GameplayData.Get().hp_start;
+                    player.hp = player.hp_max;
+
+                }
                 //Draw starting cards
-                int dcards = pdeck != null ? pdeck.start_cards : GameplayData.Get().cards_start;
+                int dcards=0;
+                if (pdeck != null) dcards = pdeck.start_cards;
+                else
+                {
+                    if (player == game_data.GetActivePlayer())
+                        dcards = GameplayData.Get().cards_start_First;
+                    else
+                        dcards = GameplayData.Get().cards_start_Later;
+                }
+                  
                 DrawCard(player, dcards);
 
-                //Add coin second player
-                bool is_random = level == null || level.first_player == LevelFirst.Random;
-                if (is_random && player.player_id != game_data.first_player && GameplayData.Get().second_bonus != null)
-                {
-                    Card card = Card.Create(GameplayData.Get().second_bonus, VariantData.GetDefault(), player);
-                    player.cards_hand.Add(card);
-                }
+
+                #region   //Add coin to second player
+                //bool is_random = level == null || level.first_player == LevelFirst.Random;
+                //if (is_random && player.player_id != game_data.first_player && GameplayData.Get().second_bonus != null)
+                //{
+                //    Card card = Card.Create(GameplayData.Get().second_bonus, VariantData.GetDefault(), player);
+                //    player.cards_hand.Add(card);
+                //}
+                #endregion
             }
 
             //Start state
             RefreshData();
             onGameStart?.Invoke();
-
-            StartTurn();
+            BeginTheShuffle();
+            //StartTurn();
         }
 		
+        public virtual void BeginTheShuffle()
+        {
+            Player current = game_data.GetPlayer(game_data.current_player);
+            game_data.state = GameState.BeginTheShuffle;
+            game_data.phase = GamePhase.WaitBothSides;
+            Card card = Card.Create(GameplayData.Get().HideCard, VariantData.GetDefault(), current);
+           //Card card = new Card(GameplayData.Get().HideCard.id, GameTool.GenerateRandomID(11, 15), game_data.current_player);
+            var a = card.Data.GetAbility(AbilityTrigger.Activate);
+            current.cards_temp.Add(card);
+            game_data.turn_timer = GameplayData.Get().turn_duration;
+            ResolveCardAbilitySelector(a, card);
+        }
         public virtual void StartTurn()
         {
             if (game_data.state == GameState.GameEnded)
@@ -268,11 +304,23 @@ namespace TcgEngine.Gameplay
         {
             if (game_data.state == GameState.GameEnded)
                 return;
-
-            CancelSelection();
-
-            //Add to resolve queue in case its still resolving
-            resolve_queue.AddCallback(EndTurn);
+            Debug.Log("NextStep");
+            if (game_data.state == GameState.BeginTheShuffle )
+            {
+                foreach (Player p in game_data.players)
+                {
+                    p.cards_temp.Clear();
+                    SetPlayerSelected_CheckBothSelector(p);
+                }
+                game_data.selector = SelectorType.None;
+                game_data.state = GameState.Play;
+                RefreshData();
+                resolve_queue.AddCallback(StartTurn);
+                resolve_queue.ResolveAll();
+                return;
+            }
+            CancelSelection(null);
+            resolve_queue.AddCallback(EndTurn); //Add to resolve queue in case its still resolving
             resolve_queue.ResolveAll();
         }
 
@@ -284,13 +332,27 @@ namespace TcgEngine.Gameplay
             Player alive = null;
             foreach (Player player in game_data.players)
             {
-                if (!player.IsDead())
+                switch (game_data.game_model)
                 {
-                    alive = player;
-                    count_alive++;
-                }
-            }
+                    case GamerType.Player:
 
+                        if (!player.IsDead())
+                        {
+                            alive = player;
+                            count_alive++;
+                        }
+                        break;
+                    case GamerType.Hero:
+                        if (!player.IsDead_Hero())
+                        {
+                            alive = player;
+                            count_alive++;
+                        }
+                        break;
+
+                }
+              
+            }
             if (count_alive == 0)
             {
                 EndGame(-1); //Everyone is dead, Draw
@@ -409,7 +471,6 @@ namespace TcgEngine.Gameplay
 
                 //Play card
                 player.RemoveCardFromAllGroups(card);
-
                 //Add to board
                 CardData icard = card.CardData;
                 if (icard.IsBoardCard())
@@ -417,6 +478,7 @@ namespace TcgEngine.Gameplay
                     player.cards_board.Add(card);
                     card.slot = slot;
                     card.exhausted = true; //Cant attack first turn
+                    card.IsDead = false;
                 }
                 else if (icard.IsEquipment())
                 {
@@ -675,6 +737,7 @@ namespace TcgEngine.Gameplay
 
         public virtual void DrawCard(Player player, int nb = 1)
         {
+            if (nb <= 0) return;
             for (int i = 0; i < nb; i++)
             {
                 if (player.cards_deck.Count > 0 && player.cards_hand.Count < GameplayData.Get().cards_max)
@@ -916,8 +979,8 @@ namespace TcgEngine.Gameplay
             if (attacker.player_id != target.player_id)
                 pattacker.kill_count++;
 
+            target.IsDead = true;
             DiscardCard(target);
-
             TriggerCardAbilityType(AbilityTrigger.OnKill, attacker, target);
         }
 
@@ -954,7 +1017,6 @@ namespace TcgEngine.Gameplay
                 TriggerOtherCardsAbilityType(AbilityTrigger.OnDeathOther, card);
                 TriggerSecrets(AbilityTrigger.OnDeathOther, card);
             }
-
             cards_to_clear.Add(card); //Will be Clear() in the next UpdateOngoing, so that simultaneous damage effects work
             onCardDiscarded?.Invoke(card);
         }
@@ -1052,11 +1114,10 @@ namespace TcgEngine.Gameplay
 
             onAbilityStart?.Invoke(iability, caster);
             game_data.ability_triggerer = triggerer.uid;
-
+          
             bool is_selector = ResolveCardAbilitySelector(iability, caster);
             if (is_selector)
                 return; //Wait for player to select
-
             ResolveCardAbilityPlayTarget(iability, caster);
             ResolveCardAbilityPlayers(iability, caster);
             ResolveCardAbilityCards(iability, caster);
@@ -1064,10 +1125,12 @@ namespace TcgEngine.Gameplay
             ResolveCardAbilityCardData(iability, caster);
             ResolveCardAbilityNoTarget(iability, caster);
             AfterAbilityResolved(iability, caster);
+
         }
 
         protected virtual bool ResolveCardAbilitySelector(AbilityData iability, Card caster)
         {
+           
             if (iability.target == AbilityTarget.SelectTarget)
             {
                 //Wait for target
@@ -1077,6 +1140,11 @@ namespace TcgEngine.Gameplay
             else if (iability.target == AbilityTarget.CardSelector)
             {
                 GoToSelectorCard(iability, caster);
+                return true;
+            }
+            else if (iability.target == AbilityTarget.CardSelector_Both)
+            {
+                GoToSelectorCard_Both(iability, caster);
                 return true;
             }
             else if (iability.target == AbilityTarget.ChoiceSelector)
@@ -1115,8 +1183,7 @@ namespace TcgEngine.Gameplay
         protected virtual void ResolveCardAbilityPlayers(AbilityData iability, Card caster)
         {
             //Get Player Targets based on conditions
-            List<Player> targets = iability.GetPlayerTargets(game_data, caster, player_array);
-
+            List<Player> targets = iability.GetPlayerTargets(game_data, caster,current_receive_Client, player_array);
             //Resolve effects
             foreach (Player target in targets)
             {
@@ -1206,7 +1273,7 @@ namespace TcgEngine.Gameplay
                 player.mana -= iability.mana_cost;
                 caster.exhausted = caster.exhausted || iability.exhaust;
             }
-
+            
             //Recalculate and clear
             UpdateOngoing();
             CheckForWinner();
@@ -1543,17 +1610,18 @@ namespace TcgEngine.Gameplay
 
         //---- Resolve Selector -----
 
-        public virtual void SelectCard(Card target)
+        public virtual void SelectCard(Card target,Player ReceivePlayer)
         {
             if (game_data.selector == SelectorType.None)
                 return;
 
+           // Debug.Log($"SelectCard {target.uid}");
             Card caster = game_data.GetCard(game_data.selector_caster_uid);
             AbilityData ability = AbilityData.Get(game_data.selector_ability_id);
 
             if (caster == null || target == null || ability == null)
                 return;
-
+            game_data.selector_count = 0;
             if (game_data.selector == SelectorType.SelectTarget)
             {
                 if (!ability.CanTarget(game_data, caster, target))
@@ -1562,25 +1630,74 @@ namespace TcgEngine.Gameplay
                 Player player = game_data.GetPlayer(caster.player_id);
                 if (!is_ai_predict)
                     player.AddHistory(GameAction.CastAbility, caster, ability, target);
-
+                game_data.selector_count++;
+                RefreshData();
                 game_data.selector = SelectorType.None;
                 ResolveEffectTarget(ability, caster, target);
                 AfterAbilityResolved(ability, caster);
                 resolve_queue.ResolveAll();
             }
 
-            if (game_data.selector == SelectorType.SelectorCard)
+            if (game_data.selector == SelectorType.SelectorCard || game_data.selector == SelectorType.SelectorCard_Both)
             {
                 if (!ability.IsCardSelectionValid(game_data, caster, target, card_array))
                     return; //Supports conditions and filters
-
-                game_data.selector = SelectorType.None;
+                game_data.selector_count++;
+                if (SetPlayerSelected_CheckBothSelector(ReceivePlayer)) 
+                    game_data.selector = SelectorType.None;
+                RefreshData();
                 ResolveEffectTarget(ability, caster, target);
                 AfterAbilityResolved(ability, caster);
                 resolve_queue.ResolveAll();
             }
+            
         }
+       
+        public virtual void SelectCards(string[] targets, Player ReceivePlayer = null)
+        {
+            if (game_data.selector == SelectorType.None)
+                return;
+            Card caster = game_data.GetCard(game_data.selector_caster_uid);
+            AbilityData ability = AbilityData.Get(game_data.selector_ability_id);
+            var temp = game_data.selector;
+            game_data.selector_count = 0;
+            foreach (string targetId in targets)
+            {
+                Card target = game_data.GetCard(targetId);
+                Debug.Log($"Use Cards  {targetId}");
+                if (caster == null || target == null || ability == null)
+                    continue;
+                if (temp == SelectorType.SelectTarget)
+                {
+                    if (!ability.CanTarget(game_data, caster, target))          
+                        continue; //Can't target that target
 
+
+                    Player player = game_data.GetPlayer(caster.player_id);
+                    if (!is_ai_predict)
+                        player.AddHistory(GameAction.CastAbility, caster, ability, target);
+                    game_data.selector_count++;
+                    game_data.selector = SelectorType.None;
+                    ResolveEffectTarget(ability, caster, target);
+                    //AfterAbilityResolved(ability, caster);
+                    //resolve_queue.ResolveAll();
+                }
+                if (temp == SelectorType.SelectorCard || temp == SelectorType.SelectorCard_Both)
+                {
+                    if (!ability.IsCardSelectionValid(game_data, caster, target, card_array))
+                        break; //Supports conditions and filters
+                    game_data.selector_count++;
+                    if (SetPlayerSelected_CheckBothSelector(ReceivePlayer))
+                        game_data.selector = SelectorType.None;
+                    RefreshData();
+                    ResolveEffectTarget(ability, caster, target);
+                    //AfterAbilityResolved(ability, caster);
+                    //resolve_queue.ResolveAll();
+                }
+            }
+            AfterAbilityResolved(ability, caster);
+            resolve_queue.ResolveAll();
+        }
         public virtual void SelectPlayer(Player target)
         {
             if (game_data.selector == SelectorType.None)
@@ -1662,13 +1779,20 @@ namespace TcgEngine.Gameplay
             }
         }
 
-        public virtual void CancelSelection()
+        public virtual void CancelSelection(Player player)
         {
+            if (game_data.selector == SelectorType.SelectorCard_Both&& player != null)
+            {
+                if (SetPlayerSelected_CheckBothSelector(player)) game_data.selector = SelectorType.None;
+                RefreshData();
+                return;
+            }
             if (game_data.selector != SelectorType.None)
             {
                 //End selection
                 game_data.selector = SelectorType.None;
                 RefreshData();
+                return;
             }
         }
 
@@ -1680,6 +1804,7 @@ namespace TcgEngine.Gameplay
             game_data.selector_player_id = caster.player_id;
             game_data.selector_ability_id = iability.id;
             game_data.selector_caster_uid = caster.uid;
+            game_data.selector_count = 0;
             RefreshData();
         }
 
@@ -1689,6 +1814,18 @@ namespace TcgEngine.Gameplay
             game_data.selector_player_id = caster.player_id;
             game_data.selector_ability_id = iability.id;
             game_data.selector_caster_uid = caster.uid;
+            game_data.selector_count = 0;
+            RefreshData();
+        }
+        protected virtual void GoToSelectorCard_Both(AbilityData iability, Card caster)
+        {
+            game_data.selector = SelectorType.SelectorCard_Both;
+            for (int i = 0; i < game_data.selector_Done_player.Length; i++)
+                game_data.selector_Done_player[i] = false;
+            game_data.selector_player_id = Game.selector_Allplayer;
+            game_data.selector_ability_id = iability.id;
+            game_data.selector_caster_uid = caster.uid;
+            game_data.selector_count = 0;
             RefreshData();
         }
 
@@ -1698,9 +1835,26 @@ namespace TcgEngine.Gameplay
             game_data.selector_player_id = caster.player_id;
             game_data.selector_ability_id = iability.id;
             game_data.selector_caster_uid = caster.uid;
+            game_data.selector_count = 0;
             RefreshData();
         }
+        //-------------
+        public virtual bool SetPlayerSelected_CheckBothSelector(Player player)
+        {
+            if (game_data.selector != SelectorType.SelectorCard_Both) return true;
 
+            game_data.selector_Done_player[player.player_id] = true;
+            if (game_data.IsAllPlayerDoneSelector())
+            {
+                //game_data.selector = SelectorType.None;
+                return true;
+            }
+            else
+            {
+               // game_data.selector = SelectorType.SelectorCard_Both;
+                return false;
+            }
+        }
         //-------------
 
         public virtual void RefreshData()
@@ -1737,8 +1891,9 @@ namespace TcgEngine.Gameplay
         {
             return random;
         }
-
         public Game GameData { get { return game_data; } }
         public ResolveQueue ResolveQueue { get { return resolve_queue; } }
+
+        public void SetResClient(Player p) => current_receive_Client = p;
     }
 }

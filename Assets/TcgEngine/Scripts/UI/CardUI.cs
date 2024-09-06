@@ -78,9 +78,9 @@ namespace TcgEngine.UI
                 card_text.text = card.GetText();
 
             if (attack_icon != null)
-                attack_icon.enabled = card.IsCharacter();
+                attack_icon.enabled = card.IsCharacterRoHero();
             if (attack != null)
-                attack.enabled = card.IsCharacter();
+                attack.enabled = card.IsCharacterRoHero();
             if (hp_icon != null)
                 hp_icon.enabled = card.IsBoardCard() || card.IsEquipment();
             if (hp != null)
